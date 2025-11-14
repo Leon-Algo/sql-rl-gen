@@ -1,0 +1,31 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Loading dataset example_text2sql_spider_train.json...
+Checksum failed: missing SHA-1 hash value in dataset_info.json.
+trainable params: 247536384 || all params: 247536384 || trainable%: 100.0000
+/opt/conda/envs/sql-rl-gen/lib/python3.10/site-packages/textrl/environment.py:89: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Traceback (most recent call last):
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/sql_generation.py", line 51, in <module>
+    run()
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/sql_generation.py", line 48, in run
+    train_llm(train_args, data_args)
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/sql_generation.py", line 38, in train_llm
+    print(actor.predict(observation_list[35]))
+  File "/opt/conda/envs/sql-rl-gen/lib/python3.10/site-packages/torch/amp/autocast_mode.py", line 43, in decorate_autocast
+    return func(*args, **kwargs)
+  File "/opt/conda/envs/sql-rl-gen/lib/python3.10/site-packages/textrl/actor.py", line 126, in predict
+    obs, reward, done, pred = self.env.step(action)
+  File "/opt/conda/envs/sql-rl-gen/lib/python3.10/site-packages/textrl/environment.py", line 39, in step
+    reward = self.get_reward(self.input_item, predicted, finish)
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/envs/sql_generation_environment.py", line 52, in get_reward
+    reward, metrics = self.compute_reward(input_item, predicted_text)
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/envs/sql_generation_environment.py", line 64, in compute_reward
+    return compute_reward(self, input_item, predicted_text)
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/envs/sql_generation_environment.py", line 86, in compute_reward
+    accuracy = self.sql_query_execution_feedback(input_item['input'], predicted_text)
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/envs/sql_generation_environment.py", line 43, in sql_query_execution_feedback
+    return sql_query_execution_feedback_on_dataset(self.dataset, self.dataset_path, input_item['input'], predicted_text, self.columns_names_mismatch)
+TypeError: string indices must be integers

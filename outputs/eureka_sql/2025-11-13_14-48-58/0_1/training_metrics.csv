@@ -1,0 +1,12 @@
+accuracy,error_reason,error_type,f1,iou,precision,recall,reward
+0.0,no such column: T1.Year,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such column: T2.born_state,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such table: secretary,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such table: staff,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such column: T2.born_state,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such table: staff,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+1.0,,,1.0,1.0,1.0,1.0,0.0
+1.0,,,1.0,1.0,1.0,1.0,0.0
+0.0,no such column: T1.head_id,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such column: T2.born_state,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0
+0.0,no such column: T3.born_state,<class 'sqlite3.OperationalError'>,0.0,0.0,0.0,0.0,0.0

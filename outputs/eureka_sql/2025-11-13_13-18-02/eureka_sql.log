@@ -1,0 +1,75 @@
+[2025-11-13 13:18:02,683][root][INFO] - Workspace: /root/repos/sql-rl-gen/outputs/eureka_sql/2025-11-13_13-18-02
+[2025-11-13 13:18:02,683][root][INFO] - Project Root: /root/repos/sql-rl-gen/sql_rl_gen
+[2025-11-13 13:18:02,683][root][INFO] - Using LLM: llama3.2:3b
+[2025-11-13 13:18:02,683][root][INFO] - Task: SQLQueryGeneration
+[2025-11-13 13:18:02,683][root][INFO] - Task description: converting question and database tables into SQL query
+[2025-11-13 13:18:02,684][root][INFO] - Iteration 0: Generating 1 samples with llama3.2:3b
+[2025-11-13 13:20:37,250][httpx][INFO] - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+[2025-11-13 13:20:37,251][root][INFO] - Iteration 0: GPT Output:
+ Here is a possible implementation of the `compute_reward` method:
+```python
+import re
+from typing import Tuple, Dict
+
+def compute_reward(self, input_item, predicted_text) -> Tuple[float, Dict]:
+    # Convert input to SQL query
+    sql_query = self.sql_query_execution_feedback(input_item, predicted_text)
+
+    # Define a custom "missed_key_words_custom" function to reward accuracy
+    def missed_key_words_custom(base_penalty: float, input_sql: str, predicted_sql: str):
+        # Tokenize the input and predicted SQL queries
+        input_tokens = [token for token in re.findall(r'\w+', input_sql)]
+        predicted_tokens = [token for token in re.findall(r'\w+', predicted_sql)]
+
+        # Define a set of keywords to match with the SQL query
+        sql_keywords = ["FROM", "WHERE", "JOIN", "INNER", "OUTER", "LEFT", "RIGHT", "AS", "ON", "EXCEPT", "DISTINCT", "GROUP BY", "ORDER BY", "NOT"]
+        keyword_counts_input = {}
+        for keyword in sql_keywords:
+            if re.search(r'\b' + keyword + r'\b', input_sql, re.IGNORECASE):
+                keyword_counts_input[keyword] = input_sql.count(keyword)
+        keyword_counts_predicted = {}
+        for keyword in sql_keywords:
+            if re.search(r'\b' + keyword + r'\b', predicted_sql, re.IGNORECASE):
+                keyword_counts_predicted[keyword] = predicted_sql.count(keyword)
+
+        # Calculate the number of matched keywords
+        total_matched_keywords = 0
+        for keyword, count in keyword_counts_input.items():
+            if keyword in keyword_counts_predicted and count == keyword_counts_predicted[keyword]:
+                total_matched_keywords += 1
+
+        # Return a penalty based on the number of matched keywords
+        return base_penalty - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) if total_matched_keywords > 0 else -10.0
+
+    # Calculate the reward using the custom function or the original "missed_key_words" function
+    penalty = missed_key_words_custom(1.0, input_item['input'], sql_query)
+
+    # Convert the reward to a float and create a dictionary of metrics
+    if sql_keywords:
+        metric = {
+            "accuracy": 1 - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) / len(sql_keywords),
+            "precision": 1 - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) / len(sql_keywords),
+            "recall": 1 - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) / len(sql_keywords),
+            "f1": 1 - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) / len(sql_keywords),
+            "iou": 1 - (abs(len(keyword_counts_input) - len(keyword_counts_predicted)) / 2) / len(sql_keywords)
+        }
+    else:
+        metric = {}
+
+    return penalty, metric
+```
+Note that this implementation uses a custom `missed_key_words_custom` function to reward accuracy based on the number of matched keywords. You can adjust the function to fit your specific requirements.
+
+Also, note that this is just one possible implementation of the `compute_reward` method, and you may need to modify it to suit your specific needs.
+
+Finally, I would like to suggest a few things:
+
+* Make sure to test your reward function thoroughly to ensure it is working as expected.
+* Consider using a more robust metric for rewarding accuracy, such as ROUGE score or BLEU score.
+* You may want to consider adding additional rewards or penalties to encourage better behavior, such as encouraging the model to use specific keywords or syntax.
+
+[2025-11-13 13:20:37,251][root][INFO] - Iteration 0: Completion Tokens: 785, Total Tokens: 785
+[2025-11-13 13:20:37,251][root][INFO] - Iteration 0: Processing Code Run 0
+[2025-11-13 13:20:37,252][root][INFO] - Iteration 0: Code Run 0 cannot parse function signature!
+[2025-11-13 13:20:37,252][root][INFO] - All iterations of code generation failed, aborting...
+[2025-11-13 13:20:37,252][root][INFO] - Please double check the output env_iter*_response*.txt files for repeating errors!

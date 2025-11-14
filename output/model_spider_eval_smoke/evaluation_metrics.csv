@@ -1,0 +1,21 @@
+accuracy,error_reason,error_type,expected,f1,forbidden_sql_command,iou,not_sql_format,output,precision,recall,reward
+1.0,,,SELECT count(*) FROM singer,1.0,False,1.0,False,"('SELECT count(*) FROM singer',)",1.0,1.0,10.0
+1.0,,,SELECT count(*) FROM singer,1.0,False,1.0,False,"('SELECT count(*) FROM singer',)",1.0,1.0,10.0
+1.0,,,"SELECT name ,  country ,  age FROM singer ORDER BY age DESC",1.0,False,1.0,False,"('SELECT name, country, age FROM singer ORDER BY age DESC',)",1.0,1.0,10.0
+1.0,,,"SELECT name ,  country ,  age FROM singer ORDER BY age DESC",1.0,False,1.0,False,"('SELECT name, country, age FROM singer ORDER BY age DESC',)",1.0,1.0,10.0
+1.0,,,"SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",1.0,False,1.0,False,"('SELECT avg(age), min(age), max(age) FROM singer WHERE country = ""France""',)",1.0,1.0,10.0
+1.0,,,"SELECT avg(age) ,  min(age) ,  max(age) FROM singer WHERE country  =  'France'",1.0,False,1.0,False,"('SELECT avg(age), min(age), max(age) FROM singer WHERE country = ""France""',)",1.0,1.0,10.0
+1.0,,,"SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1",1.0,False,1.0,False,"('SELECT song_name, song_release_year FROM singer ORDER BY age LIMIT 1',)",1.0,1.0,10.0
+1.0,,,"SELECT song_name ,  song_release_year FROM singer ORDER BY age LIMIT 1",1.0,False,1.0,False,"('SELECT song_name, song_release_year FROM singer ORDER BY age LIMIT 1',)",1.0,1.0,10.0
+1.0,,,SELECT DISTINCT country FROM singer WHERE age  >  20,1.0,False,1.0,False,"('SELECT DISTINCT country FROM singer WHERE age > 20',)",1.0,1.0,10.0
+1.0,,,SELECT DISTINCT country FROM singer WHERE age  >  20,1.0,False,1.0,False,"('SELECT DISTINCT country FROM singer WHERE age > 20',)",1.0,1.0,10.0
+1.0,,,"SELECT country ,  count(*) FROM singer GROUP BY country",1.0,False,1.0,False,"('SELECT country, count(*) FROM singer GROUP BY country',)",1.0,1.0,10.0
+1.0,,,"SELECT country ,  count(*) FROM singer GROUP BY country",1.0,False,1.0,False,"('SELECT country, count(*) FROM singer GROUP BY country',)",1.0,1.0,10.0
+1.0,,,SELECT song_name FROM singer WHERE age  >  (SELECT avg(age) FROM singer),1.0,False,1.0,False,"('SELECT song_name FROM singer WHERE age > (SELECT avg(age) FROM singer)',)",1.0,1.0,10.0
+1.0,,,SELECT song_name FROM singer WHERE age  >  (SELECT avg(age) FROM singer),1.0,False,1.0,False,"('SELECT song_name FROM singer WHERE age > (SELECT avg(age) FROM singer)',)",1.0,1.0,10.0
+1,,,"SELECT LOCATION ,  name FROM stadium WHERE capacity BETWEEN 5000 AND 10000",0.0,False,0.0,False,"('SELECT LOCATION, name FROM stadium WHERE capacity BETWEEN 5000 AND 10000',)",0.0,0.0,3.0
+1,,,"SELECT LOCATION ,  name FROM stadium WHERE capacity BETWEEN 5000 AND 10000",0.0,False,0.0,False,"('SELECT LOCATION, name FROM stadium WHERE capacity BETWEEN 5000 AND 10000',)",0.0,0.0,3.0
+0.0,,,"select max(capacity), average from stadium",0.0,False,0.0,False,"('SELECT max(capacity), avg(capacity) FROM stadium',)",0.0,0.0,-1.0
+1.0,,,"select avg(capacity) ,  max(capacity) from stadium",1.0,False,1.0,False,"('SELECT avg(capacity), max(capacity) FROM stadium',)",1.0,1.0,10.0
+0.0,no such column: attendance,<class 'sqlite3.OperationalError'>,"SELECT name ,  capacity FROM stadium ORDER BY average DESC LIMIT 1",0.0,False,0.0,False,"('SELECT name, capacity FROM stadium ORDER BY avg(attendance) DESC LIMIT 1',)",0.0,0.0,-4.0
+0.0,no such column: attendance,<class 'sqlite3.OperationalError'>,"SELECT name ,  capacity FROM stadium ORDER BY average DESC LIMIT 1",0.0,False,0.0,False,"('SELECT name, capacity FROM stadium ORDER BY avg(attendance) DESC LIMIT 1',)",0.0,0.0,-4.0

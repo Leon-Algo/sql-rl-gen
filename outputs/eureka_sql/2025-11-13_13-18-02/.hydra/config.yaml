@@ -1,0 +1,11 @@
+model: llama3.2:3b
+temperature: 1.0
+suffix: llama3
+iteration: 1
+sample: 1
+max_iterations: 3000
+num_eval: 5
+env:
+  task: SQLQueryGeneration
+  env_name: sql_generation
+  description: converting question and database tables into SQL query

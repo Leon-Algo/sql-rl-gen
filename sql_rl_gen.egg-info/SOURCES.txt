@@ -1,0 +1,8 @@
+LICENSE
+README.md
+setup.py
+sql_rl_gen.egg-info/PKG-INFO
+sql_rl_gen.egg-info/SOURCES.txt
+sql_rl_gen.egg-info/dependency_links.txt
+sql_rl_gen.egg-info/requires.txt
+sql_rl_gen.egg-info/top_level.txt

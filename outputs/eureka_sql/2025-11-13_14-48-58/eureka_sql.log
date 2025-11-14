@@ -1,0 +1,16 @@
+[2025-11-13 14:48:59,007][root][INFO] - Workspace: /root/repos/sql-rl-gen/outputs/eureka_sql/2025-11-13_14-48-58
+[2025-11-13 14:48:59,008][root][INFO] - Project Root: /root/repos/sql-rl-gen/sql_rl_gen
+[2025-11-13 14:48:59,008][root][INFO] - Using LLM: llama3.2:3b
+[2025-11-13 14:48:59,008][root][INFO] - Task: SQLQueryGeneration
+[2025-11-13 14:48:59,008][root][INFO] - Task description: converting question and database tables into SQL query
+[2025-11-13 14:48:59,008][root][INFO] - Iteration 0: Generating 2 samples with llama3.2:3b
+[2025-11-13 14:51:00,962][httpx][INFO] - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+[2025-11-13 14:52:07,851][httpx][INFO] - HTTP Request: POST http://127.0.0.1:11434/api/chat "HTTP/1.1 200 OK"
+[2025-11-13 14:52:07,852][root][INFO] - Iteration 0: Completion Tokens: 1092, Total Tokens: 1597
+[2025-11-13 14:52:07,852][root][INFO] - Iteration 0: Processing Code Run 0
+[2025-11-13 14:52:15,485][root][INFO] - Iteration 0: Code Run 0 execution error!
+[2025-11-13 14:52:15,485][root][INFO] - Iteration 0: Processing Code Run 1
+[2025-11-13 14:52:42,564][root][INFO] - Iteration 0: Code Run 1 execution error!
+[2025-11-13 14:52:43,249][root][INFO] - All code generation failed! Repeat this iteration from the current message checkpoint!
+[2025-11-13 14:52:43,249][root][INFO] - All iterations of code generation failed, aborting...
+[2025-11-13 14:52:43,249][root][INFO] - Please double check the output env_iter*_response*.txt files for repeating errors!

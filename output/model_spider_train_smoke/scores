@@ -1,0 +1,11 @@
+average_value,average_entropy,average_value_loss,average_policy_loss,n_updates,explained_variance
+0.065697424,0.043768074,nan,nan,0,nan
+0.06314084,0.0420808,nan,nan,0,nan
+0.06499227,0.040742856,nan,nan,0,nan
+0.064834885,0.039765473,nan,nan,0,nan
+0.06484852,0.03880281,nan,nan,0,nan
+0.060908295,0.048800077,nan,nan,0,nan
+0.06242809,0.047844015,nan,nan,0,nan
+0.063569896,0.046338003,nan,nan,0,nan
+0.06054315,0.047698066,nan,nan,0,nan
+0.060798813,0.048423104,nan,nan,0,nan

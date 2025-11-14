@@ -1,0 +1,5 @@
+- env=sql_query_generator
+- sample=2
+- iteration=1
+- model=llama3.2:3b
+- temperature=0.2

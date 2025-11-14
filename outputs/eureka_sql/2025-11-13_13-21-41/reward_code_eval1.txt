@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/sql_generation.py", line 9, in <module>
+    from sql_rl_gen.generation.envs.sql_generation_environment import SQLRLEnv
+  File "/root/repos/sql-rl-gen/sql_rl_gen/generation/envs/sql_generation_environment.py", line 63
+    def compute_reward(self, input_item, predicted_text) -> Tuple[float, Dict]
+                                                                              ^
+SyntaxError: expected ':'

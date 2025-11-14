@@ -17,7 +17,8 @@ from matplotlib import pyplot as plt
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format='')
-EUREKA_ROOT_DIR = os.path.join(os.getcwd(), 'sql-rl-gen')
+# Use the package directory as the project root to avoid cwd/dirname mismatches
+EUREKA_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DESCRIPTIONS_DIR = f'{EUREKA_ROOT_DIR}/descriptions'
 RL_ROOT_DIR = f'{EUREKA_ROOT_DIR}/generation'
 ENV_DIR = f'{RL_ROOT_DIR}/envs'
@@ -33,14 +34,21 @@ def block_until_training(rl_filepath, log_status=False, iter_num=-1, response_id
     time_start = datetime.datetime.now()
     while True:
         rl_log = file_to_string(rl_filepath)
-        if "finish" in rl_log or "Traceback" in rl_log or "File" in rl_log or time_start + datetime.timedelta(
-                minutes=30) < datetime.datetime.now():
-            if log_status and "finish" in rl_log:
-                logging.info(f"Iteration {iter_num}: Code Run {response_id} successfully training!")
-            elif log_status and ("Traceback" in rl_log or "File" in rl_log):
-                logging.info(f"Iteration {iter_num}: Code Run {response_id} execution error!")
-            else:
-                logging.info(f"The agent stucked in iteration {iter_num}: Code Run is {response_id} ")
+        rl_log_lower = rl_log.lower()
+        if (
+            "finish" in rl_log_lower
+            or "traceback" in rl_log_lower
+            or "file" in rl_log_lower
+            or time_start + datetime.timedelta(minutes=30) < datetime.datetime.now()
+        ):
+            if log_status:
+                if "finish" in rl_log_lower:
+                    logging.info(f"Iteration {iter_num}: Code Run {response_id} successfully training!")
+                elif ("traceback" in rl_log_lower or "file" in rl_log_lower):
+                    logging.info(f"Iteration {iter_num}: Code Run {response_id} execution error!")
+                else:
+                    logging.info(f"The agent stucked in iteration {iter_num}: Code Run is {response_id} ")
+            # If not log_status, just break silently
             break
 
 def file_to_string(filename):
@@ -209,8 +217,15 @@ def main(cfg):
                 time.sleep(10)
             rl_filepath = f"env_iter{iter}_response{response_id}.txt"
             with open(rl_filepath, 'w') as f:
-                process = sp.Popen(['python', '-u', f'{RL_ROOT_DIR}/sql_generation.py', '--model_name_or_path', "juierror/flan-t5-text2sql-with-schema-v2", '--dataset', "example_text2sql_train",
-                                    '--steps_n', '200', '--template', 'llama2', '--dataset_name', 'spider', '--outdir', f'{iter}_{response_id}'], stdout=f, stderr=f)
+                process = sp.Popen([
+                    'python', '-u', f'{RL_ROOT_DIR}/sql_generation.py',
+                    '--model_name_or_path', 'juierror/flan-t5-text2sql-with-schema-v2',
+                    '--dataset', 'example_text2sql_spider_train',
+                    '--steps_n', '200',
+                    '--template', 'llama3',
+                    '--dataset_name', 'spider',
+                    '--outdir', f'{iter}_{response_id}'
+                ], stdout=f, stderr=f)
             block_until_training(rl_filepath, log_status=True, iter_num=iter, response_id=response_id)
             rl_runs.append(process)
         if len(code_runs) == 0:
@@ -316,21 +331,48 @@ def main(cfg):
             time.sleep(10)
         rl_filepath = f"reward_code_eval{i}.txt"
         with open(rl_filepath, 'w') as f:
-            process = sp.Popen(['python', '-u', f'{RL_ROOT_DIR}/sql_generation.py', '--model_name_or_path', "juierror/flan-t5-text2sql-with-schema-v2", '--dataset', "example_text2sql_train",
-                                '--steps_n', '200', '--template', 'llama2', '--dataset_name', 'spider', '--outdir', f'final_best'], stdout=f, stderr=f)
-        block_until_training(rl_filepath)
+            process = sp.Popen([
+                'python', '-u', f'{RL_ROOT_DIR}/sql_generation.py',
+                '--model_name_or_path', 'juierror/flan-t5-text2sql-with-schema-v2',
+                '--dataset', 'example_text2sql_spider_train',
+                '--steps_n', '200',
+                '--template', 'llama3',
+                '--dataset_name', 'spider',
+                '--outdir', 'final_best'
+            ], stdout=f, stderr=f)
+        block_until_training(rl_filepath, log_status=True, iter_num=-1, response_id=i)
         eval_runs.append(process)
-    reward_code_final_successes = []
-    rl_filepath = f"reward_code_eval{i}.txt"
-    with open(rl_filepath, 'r') as f:
-        stdout_str = f.read()
-    lines = stdout_str.split('\n')
-    stats = {}
-    for i, line in enumerate(lines):
-        if line.startswith('Reward:'):
-            extract_stats(line, stats)
-    logging.info(f"Final feedback: {stats}")
-    np.savez('final_eval.npz', reward_code_final_successes=reward_code_final_successes)
+    # Aggregate evaluation results across all runs
+    all_stats = []
+    for j in range(cfg.num_eval):
+        rl_filepath = f"reward_code_eval{j}.txt"
+        try:
+            with open(rl_filepath, 'r') as f:
+                stdout_str = f.read()
+        except Exception:
+            continue
+        lines = stdout_str.split('\n')
+        stats = {}
+        for line in lines:
+            if line.startswith('Reward:'):
+                extract_stats(line, stats)
+        if stats:
+            all_stats.append(stats)
+    # Simple summary: average accuracy and reward over evaluations (if present)
+    summary = {}
+    if all_stats:
+        keys = set().union(*[s.keys() for s in all_stats])
+        for k in keys:
+            # Only average numeric lists
+            series = []
+            for s in all_stats:
+                v = s.get(k)
+                if isinstance(v, list) and v and isinstance(v[0], (int, float)):
+                    series.append(sum(v) / len(v))
+            if series:
+                summary[k] = float(np.mean(series))
+    logging.info(f"Final feedback: {summary}")
+    np.savez('final_eval.npz', summary=summary, details=all_stats)
 
 if __name__ == "__main__":
     main()
