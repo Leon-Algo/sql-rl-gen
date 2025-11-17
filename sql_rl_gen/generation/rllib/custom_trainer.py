@@ -4,6 +4,12 @@ from pfrl.experiments.evaluator import Evaluator
 from textrl import save_agent
 from sql_rl_gen.generation.envs.utils import save_dict_csv
 
+try:
+    # TensorBoardX 是一个轻量级的 TensorBoard 日志库，不作为强依赖
+    from tensorboardX import SummaryWriter
+except Exception:  # pragma: no cover - 如果没装就简单跳过
+    SummaryWriter = None
+
 def train_evaulate_agent(agent, env, steps, eval_n_steps, eval_n_episodes, eval_interval, outdir, checkpoint_freq=None, train_max_episode_len=None, step_offset=0, eval_max_episode_len=None,
                          eval_env=None, successful_score=None, step_hooks=(), evaluation_hooks=(), save_best_so_far_agent=True, use_tensorboard=False, eval_during_episode=False, logger=None):
     for hook in evaluation_hooks:
@@ -27,6 +33,11 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
     episode_r = 0
     episode_idx = 0
     obs = env.reset()
+    # 如果安装了 tensorboardX，则初始化一个简单的 SummaryWriter
+    writer = None
+    if SummaryWriter is not None:
+        tb_logdir = os.path.join(outdir, "tb")
+        writer = SummaryWriter(log_dir=tb_logdir)
     t = step_offset
     if hasattr(agent, "t"):
         agent.t = step_offset
@@ -73,7 +84,10 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
                 hook(env, agent, t)
             episode_end = done or reset or t == steps
             if episode_end:
-                logger.info("outdir:%s step:%s episode:%s R:%s",outdir, t, episode_idx, episode_r)
+                logger.info("outdir:%s step:%s episode:%s R:%s", outdir, t, episode_idx, episode_r)
+                # 把每个 episode 的累积 reward 写入 TensorBoard 以便可视化
+                if writer is not None:
+                    writer.add_scalar("train/episode_reward", episode_r, t)
                 stats = agent.get_statistics()
                 save_dict_csv(dict(stats), outdir, "scores")
                 logger.info("statistics:%s", stats)
@@ -98,4 +112,6 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
         save_agent(agent, t, outdir, logger, suffix="_except")
         raise
     save_agent(agent, t, outdir, logger, suffix="_finish")
+    if writer is not None:
+        writer.close()
     return eval_stats_history

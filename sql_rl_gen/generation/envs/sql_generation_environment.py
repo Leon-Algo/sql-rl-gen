@@ -74,60 +74,62 @@ def compute_reward(self, input_item, predicted_text) -> Tuple[float, Dict]:
         Tuple[float, Dict]: Reward value and a dictionary of metrics.
     """
 
-    # Initialize reward and metrics
-    reward = 0.0
-    metrics = {}
-
-    # Check if the predicted query is empty
+    # 空 SQL：直接给强负奖励，避免模型什么都不输出
     if not predicted_text.strip():
-        return -10.0, {"error_type": "Empty Query"}
+        return -5.0, {"error_type": "Empty Query"}
 
-    # Calculate accuracy using sql_query_execution_feedback function
+    # 调用通用执行逻辑，拿到 accuracy / precision / recall / iou 等指标
     feedback_dict = self.sql_query_execution_feedback(input_item, predicted_text)
-    accuracy = feedback_dict.get("accuracy", 0.0)
-    metrics["accuracy"] = accuracy
 
-    # Check for precision and recall
-    if accuracy == 1.0:
-        precision = 1.0
-        recall = 1.0
+    accuracy = float(feedback_dict.get("accuracy", 0.0) or 0.0)
+    precision = float(feedback_dict.get("precision", 0.0) or 0.0)
+    recall = float(feedback_dict.get("recall", 0.0) or 0.0)
+    iou = float(feedback_dict.get("iou", 0.0) or 0.0)
+
+    error_type = feedback_dict.get("error_type")
+    error_reason = feedback_dict.get("error_reason")
+    not_sql_format = feedback_dict.get("not_sql_format", False)
+    forbidden_sql_command = feedback_dict.get("forbidden_sql_command", False)
+
+    metrics: Dict = {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "iou": iou,
+        "error_type": error_type,
+        "error_reason": error_reason,
+    }
+
+    # 1) 以执行结果为主的基础 reward：accuracy + 0.5 * iou
+    base_reward = accuracy + 0.5 * iou
+
+    # 2) 对严重错误做强负奖励覆盖
+    if forbidden_sql_command:
+        reward = -5.0
+    elif not_sql_format:
+        reward = -3.0
+    elif error_type is not None:
+        reward = -1.0
     else:
-        precision = feedback_dict.get("precision", 0.0)
-        recall = feedback_dict.get("recall", 0.0)
+        reward = base_reward
 
-    metrics["precision"] = precision
-    metrics["recall"] = recall
+    # 3) 关键词覆盖度做轻微的微调（避免喧宾夺主）
+    keyword_bonus = 0.0
+    try:
+        kw_penalty = missed_key_words(
+            base_penalty=0.1,
+            input=input_item["input"],
+            predicted=predicted_text,
+        )
+        # 将 penalty 映射到较小范围
+        keyword_bonus = 0.1 * kw_penalty
+    except Exception:
+        keyword_bonus = 0.0
 
-    # Calculate f1 score
-    if precision + recall == 0.0:
-        f1 = 0.0
-    else:
-        f1 = 2 * (precision * recall) / (precision + recall)
-    metrics["f1"] = f1
+    reward = reward + keyword_bonus
 
-    # Check for IoU
-    iou = feedback_dict.get("iou", 0.0)
+    # 4) 裁剪到一个稳定区间，防止 reward 过大过小
+    reward = max(-5.0, min(reward, 2.0))
 
-    metrics["iou"] = iou
-
-    # Calculate error type and reason
-    if "error_type" in feedback_dict:
-        error_type = feedback_dict["error_type"]
-        error_reason = feedback_dict["error_reason"]
-    else:
-        error_type = None
-        error_reason = None
-
-    metrics["error_type"] = error_type
-    metrics["error_reason"] = error_reason
-
-    # Calculate reward based on accuracy and missed keywords
-    base_penalty = 0.1
-    penalty = base_penalty - abs(missed_key_words(base_penalty, input_item['input'], predicted_text))
-    if len(input_item['input'].split()) > 10:
-        penalty *= 0.5
-
-    # Ensure reward is not negative
-    reward = max(reward, 0.0)
-
+    metrics["reward"] = reward
     return reward, metrics

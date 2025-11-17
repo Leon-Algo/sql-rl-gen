@@ -1,3 +1,7 @@
 spider/
 output/
 outputs/
+
+#缓存
+cache/
+__pycache__/
