@@ -1,6 +1,7 @@
 spider/
 output/
 outputs/
+local_models/
 
 #缓存
 cache/
