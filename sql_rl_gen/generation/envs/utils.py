@@ -50,7 +50,11 @@ def extract_data_to_llm(data) -> tuple[Any, Any, str, str, str, Any, Any]:
         return str(data['prompt']).strip(), str(data['query']).strip(), str(data['tables']).replace("'", ''), str(data['db_id']), str(data['response']), data['tables_text'], data['tables_sql'],
 
 def get_prompt(system, question, tables):
-    prompt = f"""{system}. tables: {tables}. question: {question}"""
+    prompt = f"""{system}. tables: {tables}. question: {question}""" # 目前调用基模生成SQL的prompt模板是固定的，没有设置template参数控制
+    # if template == "llama3":
+    #     return f"{system}. tables: {tables}. question: {question}"
+    # else template == "chatml":
+    #     return f"<|system|>\n{system}\n<|user|>\n{tables}\n{question}\n"
     return prompt
 
 def prepare_observation_list_and_dataset_to_pass(dataset: Dataset) -> Tuple[List, Dict, Dict]:

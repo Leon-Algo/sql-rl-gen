@@ -100,9 +100,26 @@ Prompt 模板素材：初始系统说明、用户说明、奖励函数签名、�
 ```
 
 ### 5.3 环境内部数据拆分
-- `observation_list`: 直接用于模型生成的输入（拼接问题 + schema 等）。
-- `data_list_to_pass`: 结构化对照项（用于奖励计算、执行比较）。
-- 列名不匹配集合 `columns_names_mismatch`：用于奖励中惩罚或提示。
+- `--template`（默认 `llama3`）：控制 prompt 的具体格式，即“同一条问题 + schema 用什么话问模型”。不同模板可以对接不同基座模型偏好的格式，例如：
+  - `llama3` 风格：`You are a text-to-SQL assistant. tables: <schema>. question: <question>`
+  - 未来可扩展为其它格式（如 ChatML、中文说明等），只需在 prompt 构造逻辑中根据 template 分支。
+
+- `observation_list`：**喂给模型看的输入列表**。
+  - 形式：每个元素形如 `{ "input": "<system> tables: <schema>. question: <question>" }`。
+  - 示例（Spider）：
+    - question: `"How many singers are there?"`
+    - schema: `"singer(id, name, country, age, song_name, song_release_year)"`
+    - observation: `{ "input": "You are a text-to-SQL assistant. tables: singer(...). question: How many singers are there?" }`。
+
+- `data_list_to_pass`：**执行与对照答案的小字典**。
+  - 形式：`{ question 文本: (db_id, gold_sql) }`。
+  - 示例：`{"How many singers are there?": ("concert_singer", "SELECT COUNT(*) FROM singer")}`。
+  - 用途：从完整 prompt 中提取 question 文本后，在这里查到对应的数据库名和标准 SQL，用于执行和计算 accuracy / precision 等指标。
+
+- `columns_names_mismatch`：**列名映射规则（主要服务 WikiSQL 等自然语言列名场景）**。
+  - 形式：`{ 完整 prompt: (tables_text, tables_sql) }`，其中 `tables_text` / `tables_sql` 是列名的“自然语言形式”和“真实 SQL 列名”的成对列表。
+  - 示例：`{"...question: How many players?": (["player id", "player name"], ["Player_ID", "Player_Name"])}`。
+  - 用途：在执行 SQL 前，把模型生成的查询里的列名根据这对列表做替换（例如把 `player id` / 大小写不一致的名字替换成表中的 `Player_ID`），减少因为列名不匹配导致的无谓执行错误，从而让奖励更关注“语义是否正确”。
 
 ## 6. 奖励函数机制 (Reward Function Mechanics)
 ### 6.1 默认 `compute_reward`
