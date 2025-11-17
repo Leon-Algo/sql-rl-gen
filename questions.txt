@@ -1,0 +1,3 @@
+How many singers are recorded in the system?
+List all singers' name, country and age, ordered by age descending.
+Find the stadium with the highest average attendance and its capacity.
