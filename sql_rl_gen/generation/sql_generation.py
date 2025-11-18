@@ -40,6 +40,12 @@ def train_llm(train_args: TrainingArguments, data_args: DataArguments):
     train_evaulate_agent(agent, env, steps=train_args.steps_n, eval_n_steps=None, eval_n_episodes=train_args.eval_n_episodes, train_max_episode_len=train_args.train_max_episode_len,
                          eval_interval=train_args.eval_interval, outdir=f'{train_args.outdir}', logger=logger)
     logger.info("------------TRAINING IS FINISHED------------")
+    tb_dir = os.path.join(train_args.outdir, "tb")
+    if os.path.isdir(tb_dir):
+        logger.info("TensorBoard logs saved to %s", tb_dir)
+        logger.info("Run the following command to open the dashboard:\n  tensorboard --logdir %s --port 6006", tb_dir)
+    else:
+        logger.info("TensorBoard logs directory %s not found. Install tensorboardX or enable logging to create it.", tb_dir)
 
 def run():
     parser = HfArgumentParser((TrainingArguments, DataArguments))
