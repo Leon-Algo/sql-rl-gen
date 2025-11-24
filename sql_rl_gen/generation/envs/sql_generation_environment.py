@@ -2,29 +2,6 @@ from typing import Tuple, Dict
 from textrl import TextRLEnv
 from sql_rl_gen.generation.envs.utils import sql_query_execution_feedback_on_dataset, save_dict_csv
 
-KEY_WORDS = ["SELECT", "FROM", "WHERE", "JOIN", "INNER", "OUTER", "LEFT", "RIGHT", "AS", "ON", "EXCEPT", "DISTINCT", "GROUP BY", "ORDER BY", "NOT", "ASC", "DESC", "LIMIT", "LIKE", "COUNT", "SUM", "AVG", "MIN", "MAX"]
-
-def missed_key_words(base_penalty: float, input: str, predicted: str):
-    keyword_counts_input = {}
-    for keyword in KEY_WORDS:
-        if keyword in input.upper() and keyword not in keyword_counts_input:
-            keyword_counts_input[keyword] = input.upper().count(keyword)
-    keyword_counts_predicted = {}
-    for keyword in KEY_WORDS:
-        if keyword in predicted.upper() and keyword not in keyword_counts_predicted:
-            keyword_counts_predicted[keyword] = predicted.upper().count(keyword)
-    total_keywords_input = sum(keyword_counts_input.values())
-    num_missing_keywords = 0
-    for keyword, count in keyword_counts_input.items():
-        if keyword not in keyword_counts_predicted or count > keyword_counts_predicted.get(keyword, 0):
-            num_missing_keywords += count - keyword_counts_predicted.get(keyword, 0)
-    if len(keyword_counts_predicted) > len(keyword_counts_input):
-        for keyword, count in keyword_counts_predicted.items():
-            if keyword not in keyword_counts_input or count > keyword_counts_input.get(keyword, 0):
-                num_missing_keywords += count - keyword_counts_input.get(keyword, 0)
-    penalty = base_penalty - abs(num_missing_keywords) if total_keywords_input > 0 else -10.0
-    return penalty
-
 class SQLRLEnv(TextRLEnv):
     def __init__(self, model, tokenizer, dataset, dataset_path, output_dir, logger, environment_name, columns_names_mismatch=None, observation_input=[], max_length=1000, compare_sample=2,
                  unfreeze_layer_from_past=0):
@@ -100,36 +77,23 @@ def compute_reward(self, input_item, predicted_text) -> Tuple[float, Dict]:
         "error_reason": error_reason,
     }
 
-    # 1) 以执行结果为主的基础 reward：accuracy + 0.5 * iou
-    base_reward = accuracy + 0.5 * iou
-
-    # 2) 对严重错误做强负奖励覆盖
-    if forbidden_sql_command:
-        reward = -5.0
-    elif not_sql_format:
-        reward = -3.0
-    elif error_type is not None:
-        reward = -1.0
+    # 简化后的奖励机制：只关注最终执行结果的正确性 (Trustworthy SQL)
+    # 1. 核心奖励：Accuracy (0.0 或 1.0)
+    #    - 如果执行结果完全匹配，给予强正向奖励 (+1.0)
+    #    - 如果执行结果不匹配，给予负向奖励 (-0.5)
+    if accuracy == 1.0:
+        reward = 1.0
     else:
-        reward = base_reward
+        reward = -0.5
 
-    # 3) 关键词覆盖度做轻微的微调（避免喧宾夺主）
-    keyword_bonus = 0.0
-    try:
-        kw_penalty = missed_key_words(
-            base_penalty=0.1,
-            input=input_item["input"],
-            predicted=predicted_text,
-        )
-        # 将 penalty 映射到较小范围
-        keyword_bonus = 0.1 * kw_penalty
-    except Exception:
-        keyword_bonus = 0.0
-
-    reward = reward + keyword_bonus
-
-    # 4) 裁剪到一个稳定区间，防止 reward 过大过小
-    reward = max(-5.0, min(reward, 2.0))
+    # 2. 错误惩罚：对非 SQL、语法错误、危险命令进行额外惩罚
+    if forbidden_sql_command:
+        reward = -2.0
+    elif not_sql_format:
+        reward = -2.0
+    elif error_type is not None:
+        # 执行报错 (Syntax Error 等)
+        reward = -1.0
 
     metrics["reward"] = reward
     return reward, metrics

@@ -69,6 +69,22 @@ def prepare_observation_list_and_dataset_to_pass(dataset: Dataset) -> Tuple[List
     return observation_list, data_list_to_pass, columns_names_mismatch
 
 def sql_query_execution_feedback_on_dataset(dataset, dataset_path, input_item, predicted_text, columns_names_mismatch=None):
+    """
+    在数据集上执行SQL查询并提供反馈
+    
+    该函数处理预测的SQL查询文本，在特定数据集路径下执行查询，并与预期结果进行比较，
+    返回详细的反馈指标。对于WIKISQL数据集，还会处理列名不匹配的情况。
+    
+    Args:
+        dataset: 数据集对象，用于获取预期查询
+        dataset_path: 数据集路径，用于确定如何处理查询
+        input_item: 输入项，包含问题信息
+        predicted_text: 预测的SQL查询文本
+        columns_names_mismatch: 列名映射字典，用于处理列名不一致情况，默认为None
+    
+    Returns:
+        dict: 包含准确率、精确率、召回率、F1分数等指标的反馈字典
+    """
     if dataset_path == WIKISQL_PATH and predicted_text is not None and columns_names_mismatch is not None:
         predicted_text = replace_columns(predicted_text, columns_names_mismatch[input_item])
     question = extract_question(input_item)

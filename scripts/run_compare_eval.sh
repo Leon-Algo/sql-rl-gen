@@ -9,7 +9,7 @@ fi
 
 python scripts/run_compare_eval.py \
   --model_name_or_path ./local_models/flan-t5-text2sql-with-schema-v2-unpacked \
-  --trained_agent_path output/model_spider_train/2000_finish \
+  --trained_agent_path ./output/model_spider_train/10000_finish \
   --dataset example_text2sql_spider_dev \
   --dataset_name spider \
   --template llama3 \
