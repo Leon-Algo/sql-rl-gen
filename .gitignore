@@ -8,3 +8,4 @@ local_models/
 #缓存
 cache/
 __pycache__/
+.hf_cache/

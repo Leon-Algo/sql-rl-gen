@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import csv
 import ast
+import re
 
 
 BASE_EVAL_DIR = Path("output/model_spider_eval_base")
@@ -94,7 +95,7 @@ def build_comparison_table(base_rows: list[dict], rl_rows: list[dict]) -> str:
     """按行号对齐基模与 RL 评估结果，生成 Markdown 表。"""
 
     lines: list[str] = []
-    lines.append("# 基座模型 vs 强化学习后模型 对比样本表\n")
+    lines.append("## 样本逐条对比\n")
     lines.append("| 样本序号 | gold SQL (expected) | 基座模型 SQL (output) | 基座 accuracy | RL SQL (output) | RL accuracy |")
     lines.append("| -------- | ------------------- | --------------------- | ------------- | --------------- | ----------- |")
 
@@ -113,6 +114,113 @@ def build_comparison_table(base_rows: list[dict], rl_rows: list[dict]) -> str:
 
     return "\n".join(lines) + "\n"
 
+def _normalize_sql(text: str) -> str:
+    """粗粒度归一化，避免把纯格式差异算成 SQL 变化。"""
+
+    s = (text or "").strip()
+    s = re.sub(r"\s+", " ", s)
+    s = s.rstrip(";").strip()
+    return s.lower()
+
+
+def compute_summary(base_rows: list[dict], rl_rows: list[dict]) -> dict:
+    n = min(len(base_rows), len(rl_rows))
+    if n == 0:
+        return {
+            "n_samples": 0,
+            "base_acc_mean": 0.0,
+            "rl_acc_mean": 0.0,
+            "diff_count": 0,
+            "changed_sql_count": 0,
+        }
+
+    base_acc_mean = sum(float(base_rows[i].get("accuracy", 0.0) or 0.0) for i in range(n)) / n
+    rl_acc_mean = sum(float(rl_rows[i].get("accuracy", 0.0) or 0.0) for i in range(n)) / n
+    diff_count = sum(
+        1
+        for i in range(n)
+        if float(base_rows[i].get("accuracy", 0.0) or 0.0) != float(rl_rows[i].get("accuracy", 0.0) or 0.0)
+    )
+    changed_sql_count = sum(
+        1
+        for i in range(n)
+        if _normalize_sql(str(base_rows[i].get("output") or "")) != _normalize_sql(str(rl_rows[i].get("output") or ""))
+    )
+
+    return {
+        "n_samples": n,
+        "base_acc_mean": base_acc_mean,
+        "rl_acc_mean": rl_acc_mean,
+        "diff_count": diff_count,
+        "changed_sql_count": changed_sql_count,
+    }
+
+
+def get_git_info(repo_root: Path) -> dict:
+    """返回 git branch/commit（可选；失败时返回空 dict）。"""
+
+    from subprocess import check_output
+
+    def _run(cmd: list[str]) -> str | None:
+        try:
+            return check_output(cmd, cwd=repo_root, text=True).strip()
+        except Exception:
+            return None
+
+    branch = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    commit = _run(["git", "rev-parse", "HEAD"])
+    short_commit = _run(["git", "rev-parse", "--short", "HEAD"])
+    dirty = _run(["git", "status", "--porcelain"])
+    return {
+        k: v
+        for k, v in {
+            "git_branch": branch,
+            "git_commit": commit,
+            "git_short_commit": short_commit,
+            "git_dirty": ("true" if dirty else "false") if dirty is not None else None,
+        }.items()
+        if v is not None
+    }
+
+
+def build_markdown_report(
+    base_rows: list[dict],
+    rl_rows: list[dict],
+    run_params: dict,
+    summary: dict,
+) -> str:
+    lines: list[str] = []
+    lines.append("# 基座模型 vs 强化学习后模型 对比样本表\n")
+
+    lines.append("## 运行参数")
+    for k in [
+        "dataset",
+        "dataset_name",
+        "template",
+        "number_of_rows_to_use",
+        "model_name_or_path",
+        "trained_agent_path",
+        "base_eval_dir",
+        "rl_eval_dir",
+        "git_branch",
+        "git_short_commit",
+        "git_commit",
+        "git_dirty",
+    ]:
+        if k in run_params and run_params[k] is not None:
+            lines.append(f"- {k}: `{run_params[k]}`")
+    lines.append("")
+
+    lines.append("## 汇总指标")
+    lines.append(f"- base_acc_mean: {summary['base_acc_mean']:.6f}")
+    lines.append(f"- rl_acc_mean: {summary['rl_acc_mean']:.6f}")
+    lines.append(f"- diff_count: {summary['diff_count']}")
+    lines.append(f"- changed_sql_count: {summary['changed_sql_count']}")
+    lines.append("")
+
+    lines.append(build_comparison_table(base_rows, rl_rows))
+    return "\n".join(lines)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="一键运行基模和 RL 评估，并生成对比 Markdown 表格")
@@ -121,11 +229,18 @@ def main() -> None:
     parser.add_argument("--dataset_name", type=str, default="spider")
     parser.add_argument("--template", type=str, default="llama3")
     parser.add_argument("--trained_agent_path", type=str, required=True)
-    parser.add_argument("--number_of_rows_to_use", type=int, default=50)
+    parser.add_argument("--number_of_rows_to_use", type=int, default=200)
     parser.add_argument("--out_md", type=str, default="output/compare_base_vs_rl.md")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
+
+    print(f"[compare-eval] dataset={args.dataset} dataset_name={args.dataset_name} n_rows={args.number_of_rows_to_use}")
+    if args.dataset.startswith("example_"):
+        print(
+            "[compare-eval] NOTE: You are evaluating an example dataset. If base vs RL looks identical, "
+            "consider using a harder/larger eval set."
+        )
 
     # 1) 运行基模评估
     BASE_EVAL_DIR.mkdir(parents=True, exist_ok=True)
@@ -163,7 +278,29 @@ def main() -> None:
     base_rows = load_eval_csv(base_csv)
     rl_rows = load_eval_csv(rl_csv)
 
-    md = build_comparison_table(base_rows, rl_rows)
+    summary = compute_summary(base_rows, rl_rows)
+    print(
+        "[compare-eval] summary:",
+        "base_acc_mean={:.6f}".format(summary["base_acc_mean"]),
+        "rl_acc_mean={:.6f}".format(summary["rl_acc_mean"]),
+        f"diff_count={summary['diff_count']}",
+        f"changed_sql_count={summary['changed_sql_count']}",
+        f"n_samples={summary['n_samples']}",
+    )
+
+    run_params = {
+        "dataset": args.dataset,
+        "dataset_name": args.dataset_name,
+        "template": args.template,
+        "number_of_rows_to_use": args.number_of_rows_to_use,
+        "model_name_or_path": args.model_name_or_path,
+        "trained_agent_path": args.trained_agent_path,
+        "base_eval_dir": str((root / BASE_EVAL_DIR).resolve()),
+        "rl_eval_dir": str((root / RL_EVAL_DIR).resolve()),
+        **get_git_info(root),
+    }
+
+    md = build_markdown_report(base_rows, rl_rows, run_params, summary)
 
     out_md_path = root / args.out_md
     out_md_path.parent.mkdir(parents=True, exist_ok=True)

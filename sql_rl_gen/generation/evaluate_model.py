@@ -30,6 +30,25 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 # 在 GPU / MPS / CPU 中自动选择一个可用设备，后续模型与张量都复用这个 device
 device = find_device()
 
+def _resolve_and_validate_trained_agent_path(trained_agent_path: str) -> str:
+    """Resolve `trained_agent_path` and fail fast if it does not exist.
+
+    This is intentionally strict: when users pass `--trained_agent_path`,
+    we must not silently fall back to base-model evaluation.
+    """
+
+    if trained_agent_path is None or not str(trained_agent_path).strip():
+        raise ValueError(
+            "`--trained_agent_path` was provided but is empty/None; refusing to fall back to base model."
+        )
+
+    resolved = os.path.expanduser(str(trained_agent_path))
+    if not os.path.exists(resolved):
+        raise FileNotFoundError(
+            f"RL checkpoint path not found: {trained_agent_path!r} (resolved: {resolved!r})."
+        )
+    return resolved
+
 
 def prediction_feedback(statistics, data_list_to_pass, dataset_path, observation, result, columns_names_mismatch):
     """给定一条模型输出 SQL，执行并把得到的反馈写入统计字典。
@@ -198,6 +217,31 @@ def evaluate_models(eval_args: EvaluateArguments, data_args: DataArguments):
     - statistics_metrics: 逐样本的原始指标列表。
     """
 
+    # 把日志打印到 stdout，方便在命令行直接观察每条样本的反馈
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="")
+    logger = logging.getLogger("Test")
+
+    # 先把“是否要加载 RL checkpoint”这件事说清楚，并且在路径错误时硬失败
+    trained_agent_path: str | None = eval_args.trained_agent_path
+    rl_checkpoint_loaded = False
+    if trained_agent_path is not None:
+        trained_agent_path = _resolve_and_validate_trained_agent_path(trained_agent_path)
+
+    logger.info(
+        "[eval] model=%s dataset=%s dataset_name=%s template=%s n_rows=%s outdir=%s",
+        eval_args.model_name_or_path,
+        data_args.dataset,
+        data_args.dataset_name,
+        data_args.template,
+        eval_args.number_of_rows_to_use,
+        eval_args.outdir,
+    )
+    logger.info(
+        "[eval] rl_checkpoint_requested=%s path=%s",
+        trained_agent_path is not None,
+        trained_agent_path,
+    )
+
     (
         dataset_path,
         observation_list,
@@ -209,12 +253,9 @@ def evaluate_models(eval_args: EvaluateArguments, data_args: DataArguments):
 
     model.eval()
 
-    # 把日志打印到 stdout，方便在命令行直接观察每条样本的反馈
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="")
-    logger = logging.getLogger("Test")
-
+    actor = None
     # 如果提供了 RL checkpoint，就构造一个 RL 环境与 agent
-    if eval_args.trained_agent_path:
+    if trained_agent_path is not None:
         # SQLRLEnv 封装了 Text-to-SQL 的单步 MDP：一次“做题”
         # 就是一个 episode。这里用 "evaluation" 模式，只做前向预测
         # 不更新参数。
@@ -251,13 +292,19 @@ def evaluate_models(eval_args: EvaluateArguments, data_args: DataArguments):
         )
 
         # 从磁盘加载已训练好的 RL 策略参数
-        agent.load(eval_args.trained_agent_path)
+        try:
+            agent.load(trained_agent_path)
+        except Exception:
+            logger.exception("[eval] rl_checkpoint_loaded=False path=%s", trained_agent_path)
+            raise
+        rl_checkpoint_loaded = True
+        logger.info("[eval] rl_checkpoint_loaded=True path=%s", trained_agent_path)
 
     statistics = {}
 
     # 逐条 observation 遍历，生成 SQL 并执行评价
     for observation in observation_list:
-        if eval_args.trained_agent_path:
+        if actor is not None:
             # actor.predict 返回 (generated_sql_with_eos, info)
             # 这里用 [0][:-4] 去掉结尾的特殊 token（一般是 "</s>" 之类）
             result = actor.predict(observation)[0][:-4]
@@ -300,6 +347,14 @@ def evaluate_models(eval_args: EvaluateArguments, data_args: DataArguments):
     # 写出两个 CSV/文本文件：一个 summary，一个逐样本明细
     save_dict_csv(feedback, eval_args.outdir, "feedback_metrics")
     save_dict_csv(statistics, eval_args.outdir, "statistics_metrics")
+
+    # 在日志里再次落地一遍“本次评估是否真的加载了 RL checkpoint”
+    logger.info(
+        "[eval] done rl_checkpoint_loaded=%s path=%s n_samples=%d",
+        rl_checkpoint_loaded,
+        trained_agent_path,
+        len(observation_list),
+    )
 
     return feedback, statistics
 

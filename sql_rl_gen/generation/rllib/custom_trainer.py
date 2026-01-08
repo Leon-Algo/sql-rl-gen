@@ -42,13 +42,22 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
     writer = None
     if SummaryWriter is not None:
         tb_logdir = os.path.join(outdir, "tb")
-        writer = SummaryWriter(log_dir=tb_logdir)
+        try:
+            writer = SummaryWriter(log_dir=tb_logdir)
+        except Exception as e:  # tensorboardX may require system semaphore support
+            logger.warning("TensorBoard logging disabled (SummaryWriter init failed): %s", e)
+            writer = None
+            # best-effort cleanup to avoid misleading "tb dir exists but empty"
+            try:
+                if os.path.isdir(tb_logdir) and not os.listdir(tb_logdir):
+                    os.rmdir(tb_logdir)
+            except Exception:
+                pass
     t = step_offset
     if hasattr(agent, "t"):
         agent.t = step_offset
     eval_stats_history = []  # List of evaluation episode stats dict
     episode_len = 0
-    tokens = 0
     # 训练速度统计与进度信息初始化
     start_time = time.time()
     last_log_time = start_time
@@ -61,40 +70,18 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
         while t < steps:
             action = agent.act(obs)
             obs, r, done, info = env.step(action)
-            flag = True # Repeat the action if the reward is not 10.0
-            attempts = 0
-            max_attempts = 10  # Maximum number of attempts to repeat the action
-            while flag:
-                if done:
-                    tokens = 0
-                    reset = episode_len == max_episode_len or info.get("needs_reset", False)
-                    agent.observe(obs, r, done, reset)
-                    if r != 10.0 and attempts < max_attempts:
-                        input = env.input_item
-                        obs = env.reset(input)
-                        action = agent.act(obs)
-                        obs, r, done, info = env.step(action)
-                        attempts += 1
-                    else:
-                        flag = False
-                elif tokens >= max_tokens: # Penalise strictly if model generates a lot of stupid stuff
-                    logger.info("Generated more tokens then allowed")
-                    reset = episode_len == max_episode_len or info.get("needs_reset", False)
-                    agent.observe(obs, -1000, done, reset)
-                    obs = env.reset(env.input_item)
-                    tokens = 0
-                    action = agent.act(obs)
-                    obs, r, done, info = env.step(action)
-                    attempts += 1
-                else:
-                    action = agent.act(obs)  # Let the agent act again based on the new observation
-                    obs, r, done, info = env.step(action)
-                    tokens += 1
+
+            # NOTE: 这里的 env 是 token-level TextRLEnv（每步一个 token）。
+            # 旧版实现曾在 reward==10.0 之外重复尝试，这在当前奖励范围内会导致
+            # 无限/多次重采样并严重扭曲训练分布；已移除，严格按环境 step 推进。
             t += 1
             if use_tqdm:
                 pbar.update(1)
-            episode_r += r
+            step_r = sum(r) if isinstance(r, (list, tuple)) else float(r)
+            episode_r += step_r
             episode_len += 1
+            reset = episode_len == max_episode_len or info.get("needs_reset", False)
+            agent.observe(obs, r, done, reset)
             for hook in step_hooks:
                 hook(env, agent, t)
             episode_end = done or reset or t == steps
@@ -120,7 +107,7 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None, max_episode_len
                 last_logged_step = t
                 last_log_time = now
             if print_every_step:
-                logger.info("[step] %d/%d r=%.4f eps=%d len=%d", t, steps, r, episode_idx, episode_len)
+                logger.info("[step] %d/%d r=%.4f eps=%d len=%d", t, steps, step_r, episode_idx, episode_len)
             if episode_end:
                 logger.info("outdir:%s step:%s episode:%s R:%s", outdir, t, episode_idx, episode_r)
                 # 把每个 episode 的累积 reward 写入 TensorBoard 以便可视化
